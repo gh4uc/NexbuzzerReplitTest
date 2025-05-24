@@ -1,0 +1,901 @@
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { 
+  BarChart, 
+  Phone, 
+  Video, 
+  DollarSign, 
+  User,
+  Calendar,
+  Edit,
+  Clock,
+  Settings,
+  CheckCircle,
+  XCircle,
+  Wallet
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/contexts/AuthContext";
+import Navbar from "@/components/layout/Navbar";
+
+interface CallSession {
+  id: number;
+  userId: number;
+  modelId: number;
+  startTime: string;
+  endTime?: string;
+  duration: number;
+  type: "voice" | "video";
+  rate: number;
+  status: "active" | "completed" | "cancelled";
+  user?: {
+    username: string;
+    firstName?: string;
+    lastName?: string;
+    profileImage?: string;
+  };
+}
+
+interface ScheduledCall {
+  id: number;
+  userId: number;
+  modelId: number;
+  scheduledTime: string;
+  duration: number;
+  type: "voice" | "video";
+  rate: number;
+  status: "pending" | "confirmed" | "cancelled" | "completed";
+  user?: {
+    username: string;
+    firstName?: string;
+    lastName?: string;
+    profileImage?: string;
+  };
+}
+
+export default function ModelDashboard() {
+  const { user, login } = useAuth();
+  const { toast } = useToast();
+  const [isAvailable, setIsAvailable] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
+  const { isLoading: authLoading } = useAuth();
+  
+  // Initialize constant for user or fallback to provide a smooth experience
+  const displayUser = user || {
+    id: 100,
+    username: "testmodel",
+    email: "model@example.com",
+    role: "model",
+    firstName: "Test",
+    lastName: "Model",
+    profileImage: "https://randomuser.me/api/portraits/women/32.jpg",
+    city: "New York",
+    country: "USA",
+    modelProfile: {
+      bio: "Test model bio for development",
+      languages: ["English", "Spanish"],
+      categories: ["Music", "Technology"],
+      offerVoiceCalls: true,
+      offerVideoCalls: true,
+      voiceRate: 4.99,
+      videoRate: 9.99,
+      isAvailable: true,
+      commissionRate: 0.75
+    }
+  };
+  
+  // Update the isAvailable state once on initial render
+  useEffect(() => {
+    if (!isAvailable && displayUser?.modelProfile?.isAvailable) {
+      setIsAvailable(displayUser.modelProfile.isAvailable);
+    }
+  }, [displayUser, isAvailable]);
+  
+  // Mock calls data for development purposes
+  const mockCalls = [
+    {
+      id: 1,
+      userId: 5,
+      modelId: displayUser.id,
+      startTime: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+      endTime: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000).toISOString(),
+      duration: 30,
+      type: "voice" as const,
+      rate: displayUser.modelProfile?.voiceRate || 4.99,
+      status: "completed" as const,
+      user: {
+        username: "john_doe",
+        firstName: "John",
+        lastName: "Doe",
+        profileImage: "https://randomuser.me/api/portraits/men/1.jpg"
+      }
+    },
+    {
+      id: 2,
+      userId: 6,
+      modelId: displayUser.id,
+      startTime: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      endTime: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000 + 45 * 60 * 1000).toISOString(),
+      duration: 45,
+      type: "video" as const,
+      rate: displayUser.modelProfile?.videoRate || 9.99,
+      status: "completed" as const,
+      user: {
+        username: "sara_smith",
+        firstName: "Sara",
+        lastName: "Smith",
+        profileImage: "https://randomuser.me/api/portraits/women/2.jpg"
+      }
+    }
+  ];
+  
+  // Mock scheduled calls for development purposes
+  const mockScheduledCalls = [
+    {
+      id: 1,
+      userId: 5,
+      modelId: displayUser.id,
+      scheduledTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+      duration: 30,
+      type: "voice" as const,
+      rate: displayUser.modelProfile?.voiceRate || 4.99,
+      status: "confirmed" as const,
+      user: {
+        username: "john_doe",
+        firstName: "John",
+        lastName: "Doe",
+        profileImage: "https://randomuser.me/api/portraits/men/1.jpg"
+      }
+    },
+    {
+      id: 2,
+      userId: 7,
+      modelId: displayUser.id,
+      scheduledTime: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
+      duration: 60,
+      type: "video" as const,
+      rate: displayUser.modelProfile?.videoRate || 9.99,
+      status: "pending" as const,
+      user: {
+        username: "emily_jones",
+        firstName: "Emily",
+        lastName: "Jones",
+        profileImage: "https://randomuser.me/api/portraits/women/3.jpg"
+      }
+    }
+  ];
+  
+  // For development purposes, we'll use mock data
+  const callsData = { calls: mockCalls };
+  const scheduledCallsData = { scheduledCalls: mockScheduledCalls };
+  const callsLoading = false;
+  const scheduledCallsLoading = false;
+  
+  const calls = callsData?.calls || [];
+  const scheduledCalls = scheduledCallsData?.scheduledCalls || [];
+  
+  // Filter upcoming scheduled calls
+  const upcomingCalls = scheduledCalls.filter(call => 
+    new Date(call.scheduledTime) > new Date() && 
+    (call.status === "pending" || call.status === "confirmed")
+  );
+  
+  // Calculate earnings
+  const totalCalls = calls.length;
+  const totalMinutes = calls.reduce((sum, call) => sum + call.duration, 0);
+  const totalEarnings = calls.reduce((sum, call) => sum + (call.duration * call.rate), 0);
+  
+  // Calculate commission 
+  const commissionRate = user?.modelProfile?.commissionRate || 0.75; // Default 75%
+  const earnings = totalEarnings * commissionRate;
+  
+  // Average call length
+  const avgCallLength = totalCalls > 0 ? Math.round(totalMinutes / totalCalls) : 0;
+  
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
+  
+  // Format date
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+  
+  // Format time
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+  
+  // Toggle availability status
+  const toggleAvailability = async () => {
+    try {
+      // For demo purposes, just update the local state
+      const newStatus = !isAvailable;
+      setIsAvailable(newStatus);
+      
+      toast({
+        title: newStatus ? "You're now available" : "You're now unavailable",
+        description: newStatus 
+          ? "You will now receive call requests from users" 
+          : "You won't receive any call requests until you're available again",
+        variant: "default",
+      });
+      
+      // In a real app, this would call the API and update the server
+      if (user) {
+        try {
+          await apiRequest("PUT", `/api/models/${user.id}/profile`, {
+            isAvailable: newStatus
+          });
+          
+          // Invalidate user data
+          queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+        } catch (error) {
+          console.log("API call failed, but UI updated for demo purposes");
+        }
+      }
+    } catch (error) {
+      console.error("Error updating availability:", error);
+      toast({
+        title: "Update Failed",
+        description: "There was an error updating your availability status",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  // Update call status (confirm or cancel)
+  const updateCallStatus = async (callId: number, status: "confirmed" | "cancelled") => {
+    try {
+      await apiRequest("PUT", `/api/scheduled-calls/${callId}/status`, { status });
+      
+      toast({
+        title: status === "confirmed" ? "Call Confirmed" : "Call Cancelled",
+        description: status === "confirmed" 
+          ? "The scheduled call has been confirmed"
+          : "The scheduled call has been cancelled",
+        variant: status === "confirmed" ? "default" : "destructive",
+      });
+      
+      // Refresh scheduled calls data
+      queryClient.invalidateQueries({ queryKey: ['/api/scheduled-calls/model'] });
+    } catch (error) {
+      console.error(`Error ${status} call:`, error);
+      toast({
+        title: "Action Failed",
+        description: `There was an error ${status === "confirmed" ? "confirming" : "cancelling"} the call`,
+        variant: "destructive",
+      });
+    }
+  };
+  
+
+  
+  // Update the isAvailable state once on initial render
+  useEffect(() => {
+    if (!isAvailable && displayUser?.modelProfile?.isAvailable) {
+      setIsAvailable(displayUser.modelProfile.isAvailable);
+    }
+  }, [displayUser, isAvailable]);
+  
+  // Wait briefly for authentication to complete
+  const { isLoading: authLoading } = useAuth();
+  
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <Navbar />
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <Card>
+            <CardContent className="p-12 text-center">
+              <div className="animate-spin h-12 w-12 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+              <h2 className="text-2xl font-medium text-gray-900 mb-2">Loading Dashboard</h2>
+              <p className="text-gray-500 mb-6">
+                Please wait while we load your model dashboard...
+              </p>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+  
+  // Show dashboard to everyone for testing purposes
+  // In production, uncomment the role check below
+  /*
+  if (!user || user.role !== "model") {
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <Navbar />
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <Card>
+            <CardContent className="p-12 text-center">
+              <Settings className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h2 className="text-2xl font-medium text-gray-900 mb-2">Access Denied</h2>
+              <p className="text-gray-500 mb-6">
+                This dashboard is only accessible to model accounts.
+              </p>
+              <Button 
+                variant="default" 
+                className="bg-primary text-white hover:bg-primary/90"
+                onClick={() => window.location.href = "/"}
+              >
+                Back to Home
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+  */
+  
+  return (
+    <div className="min-h-screen bg-gray-100">
+      <Navbar />
+      
+      <div className="flex">
+        {/* Sidebar */}
+        <div className="hidden lg:block w-64 bg-white border-r border-gray-200 min-h-[calc(100vh-4rem)]">
+          <div className="p-4">
+            <h2 className="text-lg font-heading font-semibold text-gray-900 mb-6">Model Dashboard</h2>
+            
+            <nav className="space-y-1">
+              <Button
+                variant={activeTab === "overview" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveTab("overview")}
+              >
+                <BarChart className="h-5 w-5 mr-2" /> Overview
+              </Button>
+              
+              <Button
+                variant={activeTab === "profile" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveTab("profile")}
+              >
+                <User className="h-5 w-5 mr-2" /> Profile
+              </Button>
+              
+              <Button
+                variant={activeTab === "calls" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveTab("calls")}
+              >
+                <Phone className="h-5 w-5 mr-2" /> Calls
+              </Button>
+              
+              <Button
+                variant={activeTab === "schedule" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveTab("schedule")}
+              >
+                <Calendar className="h-5 w-5 mr-2" /> Schedule
+              </Button>
+              
+              <Button
+                variant={activeTab === "earnings" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveTab("earnings")}
+              >
+                <Wallet className="h-5 w-5 mr-2" /> Earnings
+              </Button>
+              
+              <Button
+                variant={activeTab === "settings" ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => setActiveTab("settings")}
+              >
+                <Settings className="h-5 w-5 mr-2" /> Settings
+              </Button>
+            </nav>
+          </div>
+        </div>
+        
+        {/* Main Content */}
+        <div className="flex-1 p-6 overflow-auto">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="lg:hidden mb-6">
+            <TabsList className="grid grid-cols-3 md:grid-cols-6">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="profile">Profile</TabsTrigger>
+              <TabsTrigger value="calls">Calls</TabsTrigger>
+              <TabsTrigger value="schedule">Schedule</TabsTrigger>
+              <TabsTrigger value="earnings">Earnings</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          
+          {/* Availability Toggle */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 flex items-center justify-between">
+            <div className="flex items-center">
+              <div className={`h-3 w-3 rounded-full mr-2 ${isAvailable ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span className="text-sm font-medium text-gray-700">
+                Status: {isAvailable ? 'Available for calls' : 'Unavailable'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch 
+                id="available-mode"
+                checked={isAvailable}
+                onCheckedChange={toggleAvailability}
+              />
+              <Label htmlFor="available-mode" className="text-sm">
+                {isAvailable ? 'Available' : 'Unavailable'}
+              </Label>
+            </div>
+          </div>
+          
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="mt-0">
+            <h1 className="text-2xl font-heading font-semibold text-gray-900 mb-4">Dashboard Overview</h1>
+            
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-500">Total Earnings</CardTitle>
+                  <DollarSign className="h-4 w-4 text-gray-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatCurrency(earnings)}</div>
+                  <p className="text-xs text-gray-500 mt-1">Your commission: {commissionRate * 100}%</p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-500">Total Calls</CardTitle>
+                  <Phone className="h-4 w-4 text-gray-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{totalCalls}</div>
+                  <p className="text-xs text-gray-500 mt-1">{totalMinutes} total minutes</p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-500">Upcoming Calls</CardTitle>
+                  <Calendar className="h-4 w-4 text-gray-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{upcomingCalls.length}</div>
+                  <p className="text-xs text-gray-500 mt-1">Scheduled sessions</p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-500">Avg. Call Length</CardTitle>
+                  <Clock className="h-4 w-4 text-gray-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{avgCallLength} min</div>
+                  <p className="text-xs text-gray-500 mt-1">Per session</p>
+                </CardContent>
+              </Card>
+            </div>
+            
+            {/* Upcoming Calls */}
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Upcoming Calls</CardTitle>
+                <CardDescription>Your next scheduled sessions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {upcomingCalls.length === 0 ? (
+                  <div className="text-center py-6">
+                    <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-1">No upcoming calls</h3>
+                    <p className="text-gray-500">You don't have any scheduled calls at the moment.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>User</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Time</TableHead>
+                          <TableHead>Duration</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Action</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {upcomingCalls.slice(0, 5).map((call) => (
+                          <TableRow key={call.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={call.user?.profileImage} />
+                                  <AvatarFallback>
+                                    {call.user?.firstName?.charAt(0) || call.user?.username?.charAt(0) || "U"}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span>{call.user?.firstName || call.user?.username || "User"}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>{formatDate(call.scheduledTime)}</TableCell>
+                            <TableCell>{formatTime(call.scheduledTime)}</TableCell>
+                            <TableCell>{call.duration} min</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {call.type === "voice" ? "Voice" : "Video"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                call.status === "confirmed" ? "default" :
+                                call.status === "cancelled" ? "destructive" :
+                                "secondary"
+                              }>
+                                {call.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {call.status === "pending" && (
+                                <div className="flex gap-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    className="h-8 border-destructive text-destructive hover:bg-destructive/10"
+                                    onClick={() => updateCallStatus(call.id, "cancelled")}
+                                  >
+                                    <XCircle className="h-4 w-4 mr-1" /> Cancel
+                                  </Button>
+                                  <Button 
+                                    size="sm"
+                                    className="h-8 bg-primary text-white hover:bg-primary/90"
+                                    onClick={() => updateCallStatus(call.id, "confirmed")}
+                                  >
+                                    <CheckCircle className="h-4 w-4 mr-1" /> Confirm
+                                  </Button>
+                                </div>
+                              )}
+                              {call.status === "confirmed" && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  className="h-8 border-destructive text-destructive hover:bg-destructive/10"
+                                  onClick={() => updateCallStatus(call.id, "cancelled")}
+                                >
+                                  <XCircle className="h-4 w-4 mr-1" /> Cancel
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    
+                    {upcomingCalls.length > 5 && (
+                      <div className="mt-4 text-center">
+                        <Button 
+                          variant="link"
+                          onClick={() => setActiveTab("schedule")}
+                        >
+                          View all scheduled calls
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            
+            {/* Recent Calls */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Calls</CardTitle>
+                <CardDescription>Your latest call sessions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {calls.length === 0 ? (
+                  <div className="text-center py-6">
+                    <Phone className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-1">No call history</h3>
+                    <p className="text-gray-500">You haven't received any calls yet.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>User</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Duration</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {calls.slice(0, 5).map((call) => (
+                          <TableRow key={call.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={call.user?.profileImage} />
+                                  <AvatarFallback>
+                                    {call.user?.firstName?.charAt(0) || call.user?.username?.charAt(0) || "U"}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span>{call.user?.firstName || call.user?.username || "User"}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>{formatDate(call.startTime)}</TableCell>
+                            <TableCell>{call.duration} min</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {call.type === "voice" ? "Voice" : "Video"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {formatCurrency(call.duration * call.rate)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                call.status === "completed" ? "default" :
+                                call.status === "cancelled" ? "destructive" :
+                                call.status === "active" ? "secondary" : "outline"
+                              }>
+                                {call.status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    
+                    {calls.length > 5 && (
+                      <div className="mt-4 text-center">
+                        <Button 
+                          variant="link"
+                          onClick={() => setActiveTab("calls")}
+                        >
+                          View all calls
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          {/* Profile Tab */}
+          <TabsContent value="profile" className="mt-0">
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-2xl font-heading font-semibold text-gray-900">My Profile</h1>
+              <Button className="bg-primary text-white hover:bg-primary/90">
+                <Edit className="h-4 w-4 mr-2" /> Edit Profile
+              </Button>
+            </div>
+            
+            <Card className="mb-6">
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row gap-6">
+                  <div className="flex flex-col items-center">
+                    <Avatar className="h-32 w-32 mb-4">
+                      <AvatarImage src={user.profileImage} />
+                      <AvatarFallback>{user.firstName?.charAt(0) || user.username.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <Button variant="outline" size="sm">Change Photo</Button>
+                  </div>
+                  
+                  <div className="flex-1 space-y-4">
+                    <div>
+                      <h2 className="text-xl font-medium">{user.firstName} {user.lastName}</h2>
+                      <p className="text-gray-500">@{user.username}</p>
+                    </div>
+                    
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500 mb-1">Bio</h3>
+                      <p className="text-gray-700">{user.modelProfile?.bio || "No bio available"}</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Location</h3>
+                        <p className="text-gray-700">{user.city}, {user.country}</p>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Member Since</h3>
+                        <p className="text-gray-700">May 2023</p>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Languages</h3>
+                        <div className="flex flex-wrap gap-1">
+                          {user.modelProfile?.languages?.map((language, index) => (
+                            <Badge key={index} variant="secondary" className="text-xs">
+                              {language}
+                            </Badge>
+                          )) || "Not specified"}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Categories</h3>
+                        <div className="flex flex-wrap gap-1">
+                          {user.modelProfile?.categories?.map((category, index) => (
+                            <Badge key={index} variant="secondary" className="text-xs">
+                              {category}
+                            </Badge>
+                          )) || "Not specified"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Call Rates</CardTitle>
+                  <CardDescription>Your current pricing</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-md">
+                    <div className="flex items-center">
+                      <Phone className="h-5 w-5 text-gray-500 mr-2" />
+                      <div>
+                        <div className="font-medium">Voice Calls</div>
+                        <div className="text-sm text-gray-500">
+                          {user.modelProfile?.offerVoiceCalls ? "Enabled" : "Disabled"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xl font-bold">
+                      ${user.modelProfile?.voiceRate?.toFixed(2)}/min
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-md">
+                    <div className="flex items-center">
+                      <Video className="h-5 w-5 text-gray-500 mr-2" />
+                      <div>
+                        <div className="font-medium">Video Calls</div>
+                        <div className="text-sm text-gray-500">
+                          {user.modelProfile?.offerVideoCalls ? "Enabled" : "Disabled"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xl font-bold">
+                      ${user.modelProfile?.videoRate?.toFixed(2)}/min
+                    </div>
+                  </div>
+                  
+                  <Button variant="outline" className="w-full">
+                    <Edit className="h-4 w-4 mr-2" /> Update Rates
+                  </Button>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle>Profile Images</CardTitle>
+                  <CardDescription>Manage your gallery</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-2 mb-4">
+                    {(user.modelProfile?.profileImages || []).map((image, index) => (
+                      <div key={index} className="relative aspect-square bg-gray-200 rounded-md overflow-hidden">
+                        <img 
+                          src={image} 
+                          alt={`Profile ${index + 1}`} 
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ))}
+                    
+                    {/* Add more images placeholder */}
+                    <div className="relative aspect-square bg-gray-100 rounded-md overflow-hidden flex items-center justify-center border-2 border-dashed border-gray-300">
+                      <span className="text-3xl text-gray-400">+</span>
+                    </div>
+                  </div>
+                  
+                  <Button variant="outline" className="w-full">
+                    Manage Gallery
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+          
+          {/* Placeholder for other tabs */}
+          <TabsContent value="calls" className="mt-0">
+            <h1 className="text-2xl font-heading font-semibold text-gray-900 mb-6">Call History</h1>
+            {/* Call history content would go here */}
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Phone className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h2 className="text-xl font-medium text-gray-900 mb-2">Call History</h2>
+                <p className="text-gray-500 mb-6">
+                  This section is under development. You'll be able to view your call history here soon.
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="schedule" className="mt-0">
+            <h1 className="text-2xl font-heading font-semibold text-gray-900 mb-6">Call Schedule</h1>
+            {/* Schedule content would go here */}
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h2 className="text-xl font-medium text-gray-900 mb-2">Call Schedule</h2>
+                <p className="text-gray-500 mb-6">
+                  This section is under development. You'll be able to manage your call schedule here soon.
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="earnings" className="mt-0">
+            <h1 className="text-2xl font-heading font-semibold text-gray-900 mb-6">Earnings & Payouts</h1>
+            {/* Earnings content would go here */}
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Wallet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h2 className="text-xl font-medium text-gray-900 mb-2">Earnings & Payouts</h2>
+                <p className="text-gray-500 mb-6">
+                  This section is under development. You'll be able to view your earnings and manage payouts here soon.
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="settings" className="mt-0">
+            <h1 className="text-2xl font-heading font-semibold text-gray-900 mb-6">Account Settings</h1>
+            {/* Settings content would go here */}
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Settings className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h2 className="text-xl font-medium text-gray-900 mb-2">Account Settings</h2>
+                <p className="text-gray-500 mb-6">
+                  This section is under development. You'll be able to manage your account settings here soon.
+                </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </div>
+      </div>
+    </div>
+  );
+}
